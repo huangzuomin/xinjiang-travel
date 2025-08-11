@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>北疆环线交互式探索指南</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Warm Neutrals & Subtle Greens -->
+    <!-- Application Structure Plan: A non-linear, task-oriented SPA. The core is a sticky top navigation that controls the main content view, switching between: 1. Itinerary Overview (interactive timeline + driving chart), 2. Pre-trip Prep (collapsible sections), 3. Attraction Guide (filterable grid), and 4. Budget Estimator (interactive calculator). This structure is chosen over a linear report to empower users to quickly access information based on their current task (e.g., "what to pack?" or "how much will it cost?") rather than forcing them to read sequentially. It prioritizes usability and quick reference. -->
+    <!-- Visualization & Content Choices: 
+        - Itinerary: Goal=Show journey flow. Method=Interactive timeline (HTML/CSS/JS) + Bar Chart (Chart.js). Interaction=Click to expand details. Justification=More engaging and scannable than a long text list. The chart visualizes daily travel load.
+        - Key Data (Tickets/Rules): Goal=Inform. Method=HTML tables within expandable sections. Interaction=Revealed on demand. Justification=Avoids information overload.
+        - Preparatory Info: Goal=Organize. Method=Collapsible accordions (HTML/JS). Interaction=Click to toggle. Justification=Clean, structured presentation.
+        - Budget: Goal=Provide practical tool. Method=Interactive form with sliders (HTML/JS). Interaction=Real-time calculation. Justification=Adds high utility and engagement.
+        - CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Noto Sans SC', sans-serif;
+            background-color: #fdfaf6;
+            color: #4a4a4a;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 250px;
+            max-height: 300px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 300px;
+                max-height: 350px;
+            }
+        }
+        .nav-link {
+            transition: all 0.3s ease;
+            border-bottom: 2px solid transparent;
+        }
+        .nav-link.active {
+            color: #1e40af;
+            border-bottom-color: #1e40af;
+        }
+        .nav-link:hover {
+            color: #1d4ed8;
+        }
+        .day-card {
+            transition: all 0.3s ease;
+            border-left: 4px solid #d1d5db;
+        }
+        .day-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+            border-left-color: #3b82f6;
+        }
+        .details-content {
+            transition: max-height 0.5s ease-in-out, padding 0.5s ease-in-out;
+            max-height: 0;
+            overflow: hidden;
+        }
+        .details-content.open {
+            max-height: 2000px;
+            padding-top: 1rem;
+            padding-bottom: 1rem;
+        }
+        .btn-filter {
+            transition: all 0.2s ease;
+        }
+        .btn-filter.active {
+            background-color: #1e40af;
+            color: white;
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <div class="container mx-auto px-4 py-8">
+        
+        <header class="text-center mb-8">
+            <h1 class="text-4xl md:text-5xl font-bold text-gray-800 mb-2">终极北疆环线</h1>
+            <p class="text-xl text-gray-600">以独库公路为核心的11日自驾交互式探索指南</p>
+        </header>
+
+        <nav id="mainNav" class="sticky top-0 z-10 bg-white/80 backdrop-blur-sm shadow-md rounded-lg mb-8">
+            <div class="max-w-4xl mx-auto px-4">
+                <div class="flex justify-center space-x-4 md:space-x-8 py-3">
+                    <button data-target="overview" class="nav-link active font-medium px-2 py-2 text-sm md:text-base">行程概览</button>
+                    <button data-target="prep" class="nav-link font-medium px-2 py-2 text-sm md:text-base">行前准备</button>
+                    <button data-target="attractions" class="nav-link font-medium px-2 py-2 text-sm md:text-base">景点速查</button>
+                    <button data-target="budget" class="nav-link font-medium px-2 py-2 text-sm md:text-base">预算估算</button>
+                </div>
+            </div>
+        </nav>
+
+        <main id="mainContent">
+
+            <section id="overview" class="content-section">
+                <div class="bg-white p-6 rounded-lg shadow-lg mb-8">
+                    <h2 class="text-2xl font-bold mb-4 text-center text-gray-800">行程哲学：独库优先</h2>
+                    <p class="text-gray-700 leading-relaxed text-center max-w-3xl mx-auto">
+                        本方案的精髓在于，将整个旅程的“高潮”——穿越传奇的独库公路，放在了精力最充沛的中段。通过战略性放弃伊犁南部的夏塔与特克斯，我们确保了路线的流畅性与时间的合理性，从而极大地提升了您在独库公路、那拉提、赛里木湖等核心景区的体验质量。
+                    </p>
+                </div>
+
+                <div class="bg-white p-6 rounded-lg shadow-lg mb-8">
+                    <h2 class="text-2xl font-bold mb-4 text-center text-gray-800">每日驾驶强度概览</h2>
+                     <p class="text-center text-gray-500 mb-4">直观感受每日的行车距离，合理分配体力。</p>
+                    <div class="chart-container">
+                        <canvas id="drivingChart"></canvas>
+                    </div>
+                </div>
+                
+                <div id="itinerary" class="space-y-6">
+                </div>
+            </section>
+
+            <section id="prep" class="content-section hidden">
+            </section>
+
+            <section id="attractions" class="content-section hidden">
+            </section>
+
+            <section id="budget" class="content-section hidden">
+            </section>
+
+        </main>
+    </div>
+
+    <script>
+        const appData = {
+            itinerary: [
+                { day: 1, date: "8月12日", route: "抵达乌鲁木齐", distance: 0, activities: "航班抵达，办理提车手续，入住酒店。为长途旅行做好最后的物资准备。", food: "当地特色烧烤或拌面", stay: "乌鲁木齐市区酒店（如：锡林郭勒宾馆）" },
+                { day: 2, date: "8月13日", route: "乌鲁木齐 → 布尔津", distance: 650, activities: "上午沿S21沙漠高速北上，感受戈壁风光。傍晚抵达五彩滩，拍摄额尔齐斯河畔的日落熔金。", food: "布尔津河堤夜市品尝冷水烤鱼和格瓦斯", stay: "布尔津县城酒店（如：布尔津夜光城假日酒店）" },
+                { day: 3, date: "8月14日", route: "布尔津 → 喀纳斯", distance: 120, activities: "上午出发，中午抵达贾登峪。换乘区间车进入喀纳斯景区，下午游览三湾（神仙湾、月亮湾、卧龙湾），傍晚登观鱼台看全景。", food: "景区内民宿餐厅解决，品尝图瓦特色菜", stay: "喀纳斯景区内图瓦小木屋（如：在山野·赞纳度假民宿）" },
+                { day: 4, date: "8月15日", route: "喀纳斯 → 禾木", distance: 60, activities: "上午可体验喀纳斯湖游船或在湖边栈道漫步。下午换乘区间车前往禾木村，安顿后登上观景平台拍摄日落与村庄全景。", food: "禾木村内餐厅，可尝试土火锅", stay: "禾木村特色木屋（如：禾木云墅木屋）" },
+                { day: 5, date: "8月16日", route: "禾木 → 乌尔禾/奎屯", distance: 450, activities: "清晨务必再上观景平台拍摄禾木晨雾。之后驾车南下，傍晚游览乌尔禾世界魔鬼城，欣赏雅丹地貌的日落光影。", food: "乌尔禾镇或奎屯市晚餐，品尝大盘鸡或丸子汤", stay: "乌尔禾镇或奎屯市酒店（如：奎屯上东湖大酒店）" },
+                { day: 6, date: "8月17日", route: "奎屯 → 那拉提镇", distance: 250, activities: "本日核心：穿越独库公路北段。体验“一日四季”的奇景，从峡谷到雪山再到草原，边走边玩，傍晚抵达那拉提。", food: "那拉提镇品尝哈萨克族美食，如手抓肉、奶茶", stay: "那拉提镇酒店或民宿（如：新疆文旅那拉提度假酒店）" },
+                { day: 7, date: "8月18日", route: "那拉提 → 伊宁市", distance: 260, activities: "上午深度游览那拉提“空中草原”线路。下午驱车前往伊宁，傍晚可漫步六星街或喀赞其民俗区，感受异域风情。", food: "伊宁市是美食天堂，可尝试“一把抓”、冰淇淋、各类烤肉", stay: "伊宁市酒店（如：伊宁突玛丽斯大饭店）" },
+                { day: 8, date: "8月19日", route: "伊宁 → 赛里木湖", distance: 140, activities: "上午从容出发，途经宏伟的果子沟大桥。下午和傍晚在赛里木湖进行环湖自驾，寻找最佳机位拍摄日落。", food: "赛里木湖周边餐饮选择有限，可提前在伊宁采购或在景区附近解决", stay: "赛里木湖景区旁酒店或毡房" },
+                { day: 9, date: "8月20日", route: "赛里木湖深度游", distance: 0, activities: "全天在赛里木湖畔放松。早起拍摄日出，沿湖边栈道徒步，享受不赶路的悠闲时光。", food: "自备或酒店解决", stay: "赛里木湖景区旁酒店或毡房" },
+                { day: 10, date: "8月21日", route: "赛里木湖 → 乌鲁木齐", distance: 550, activities: "上午再次感受赛里木湖的宁静，之后沿G30连霍高速返回。傍晚抵达乌鲁木齐，入住机场酒店并办理还车手续。", food: "在乌鲁木齐享用告别晚宴", stay: "乌鲁木齐机场附近酒店（如：丽枫酒店机场店）" },
+                { day: 11, date: "8月22日", route: "乌鲁木齐出发", distance: 0, activities: "清晨从酒店前往航站楼，搭乘航班，结束完美的北疆史诗之旅。", food: "机场简餐", stay: "无" }
+            ],
+            prep: [
+                { 
+                    title: "核心装备：为“一日四季”打包", 
+                    icon: "🎒",
+                    content: `
+                        <p class="mb-2">新疆温差巨大，分层穿衣是关键。</p>
+                        <ul class="list-disc list-inside space-y-2 text-gray-600">
+                            <li><strong>基础层:</strong> 吸湿排汗的贴身衣物 (如美利奴羊毛)。</li>
+                            <li><strong>中间层:</strong> 抓绒衣或轻薄羽绒，用于保暖。</li>
+                            <li><strong>外壳层:</strong> 高质量的防风防水硬壳冲锋衣，独库公路和山区必备。</li>
+                            <li><strong>其他:</strong> 舒适的徒步鞋、高倍防晒霜 (SPF50+)、润唇膏、保湿霜、太阳镜、遮阳帽。</li>
+                        </ul>` 
+                },
+                { 
+                    title: "健康与海拔适应", 
+                    icon: "❤️",
+                    content: `
+                        <p class="mb-2">部分路段海拔较高，需注意预防高反。</p>
+                        <ul class="list-disc list-inside space-y-2 text-gray-600">
+                            <li><strong>高海拔区域:</strong> 独库公路达坂 (最高约3300米)、喀纳斯观鱼台。</li>
+                            <li><strong>预防措施:</strong> 逐步适应，多喝水 (每日2-3升)，高碳水饮食，避免剧烈运动。</li>
+                            <li><strong>药物准备:</strong> 可咨询医生是否需要准备布洛芬（缓解头痛）等药物。</li>
+                        </ul>`
+                },
+                { 
+                    title: "后勤与数字准备", 
+                    icon: "🚗",
+                    content: `
+                        <p class="mb-2">确保车辆、网络和财务安排妥当。</p>
+                        <ul class="list-disc list-inside space-y-2 text-gray-600">
+                            <li><strong>车辆:</strong> 建议租用SUV，购买全面的自驾游保险。独库公路仅限7座及以下车辆通行。</li>
+                            <li><strong>网络:</strong> 偏远地区信号弱，务必提前下载离线地图。</li>
+                            <li><strong>财务:</strong> 混合支付。大城市电子支付方便，但偏远地区需备足现金。</li>
+                            <li><strong>证件:</strong> 身份证（最重要，安检频繁）、驾驶证、学生证（门票优惠）。</li>
+                        </ul>`
+                },
+                 { 
+                    title: "安全与文化礼仪", 
+                    icon: "🤝",
+                    content: `
+                        <p class="mb-2">怀着尊重与觉知去旅行。</p>
+                        <ul class="list-disc list-inside space-y-2 text-gray-600">
+                            <li><strong>安全检查:</strong> 新疆安检站较多，是正常程序，请务必随身携带身份证。</li>
+                            <li><strong>文化礼仪:</strong> 拍摄人物前请征得同意；尊重清真饮食习惯；参观宗教场所注意着装。</li>
+                        </ul>`
+                }
+            ],
+            attractions: [
+                 { name: "五彩滩", category: "自然风光", description: "额尔齐斯河畔的雅丹地貌，日落时分色彩最为绚烂，光影效果极佳。", tips: "务必在日落时分（新疆时间约21:30后）抵达。", ticket: "成人票约45元" },
+                { name: "喀纳斯", category: "自然风光", description: "被誉为“神的后花园”，集雪山、湖泊、森林、草原于一体。核心景点包括三湾和观鱼台。", tips: "门票两日有效，建议住在景区内以便拍摄晨昏。学生证半价。", ticket: "联票约230元 (含区间车)" },
+                { name: "禾木村", category: "人文景观", description: "被誉为“中国第一村”，图瓦人聚居地。核心体验是清晨的晨雾和傍晚的炊烟。", tips: "观景平台是拍摄全景的最佳位置，需要早起占位。", ticket: "门票+区间车约102元" },
+                { name: "乌尔禾魔鬼城", category: "自然风光", description: "典型的雅丹地貌，风蚀作用形成千奇百怪的形态，日落时分光影诡谲，极具视觉冲击力。", tips: "乘坐景区小火车游览，节省体力。学生证半价。", ticket: "门票+区间车约62元" },
+                { name: "独库公路", category: "公路旅行", description: "贯穿天山南北的英雄之路，沿途可体验“一日四季，十里不同天”的奇景，是整个北疆之魂。", tips: "仅限7座及以下车辆，通行时间为9:00-20:00。路况多变，谨慎驾驶。", ticket: "免费" },
+                { name: "那拉提草原", category: "草原", description: "世界四大高山河谷草原之一，被誉为“空中草原”，景色辽阔壮美。", tips: "门票两日有效，核心是“空中草原”线路。", ticket: "门票95元，各线路区间车另购" },
+                { name: "赛里木湖", category: "湖泊", description: "被誉为“大西洋的最后一滴眼泪”，高山湖泊，湖水清澈湛蓝，雪山环绕。", tips: "强烈推荐环湖自驾，日出和日落时分景色绝美。学生证半价。", ticket: "门票+区间车约144元" },
+                { name: "伊宁六星街/喀赞其", category: "人文景观", description: "充满异域风情的街区，蓝色的建筑、特色的马车、美味的冰淇淋，是感受伊犁民族风情的好去处。", tips: "适合步行漫游，品尝当地特色美食。", ticket: "免费开放" }
+            ]
+        };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const mainNav = document.getElementById('mainNav');
+            const contentSections = document.querySelectorAll('.content-section');
+            const itineraryContainer = document.getElementById('itinerary');
+            const prepContainer = document.getElementById('prep');
+            const attractionsContainer = document.getElementById('attractions');
+            const budgetContainer = document.getElementById('budget');
+
+            function switchTab(targetId) {
+                contentSections.forEach(section => {
+                    section.classList.add('hidden');
+                });
+                document.getElementById(targetId).classList.remove('hidden');
+
+                mainNav.querySelectorAll('button').forEach(button => {
+                    button.classList.remove('active');
+                    if (button.dataset.target === targetId) {
+                        button.classList.add('active');
+                    }
+                });
+            }
+
+            mainNav.addEventListener('click', (e) => {
+                if (e.target.tagName === 'BUTTON') {
+                    switchTab(e.target.dataset.target);
+                }
+            });
+            
+            function createItinerary() {
+                appData.itinerary.forEach(item => {
+                    const card = document.createElement('div');
+                    card.className = 'day-card bg-white rounded-lg shadow-md p-4 cursor-pointer';
+                    card.innerHTML = `
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <p class="text-sm text-gray-500">${item.date}</p>
+                                <h3 class="text-xl font-bold text-blue-700">第 ${item.day} 天: ${item.route}</h3>
+                                <p class="text-sm text-gray-600">🚗 行车约 ${item.distance} 公里</p>
+                            </div>
+                            <div class="text-2xl transform transition-transform duration-300">▼</div>
+                        </div>
+                        <div class="details-content">
+                            <div class="border-t my-4"></div>
+                            <p><strong>核心行程:</strong> ${item.activities}</p>
+                            <p><strong>餐饮建议:</strong> ${item.food}</p>
+                            <p><strong>住宿建议:</strong> ${item.stay}</p>
+                        </div>
+                    `;
+                    itineraryContainer.appendChild(card);
+                    
+                    card.addEventListener('click', () => {
+                        const content = card.querySelector('.details-content');
+                        const icon = card.querySelector('.text-2xl');
+                        content.classList.toggle('open');
+                        icon.classList.toggle('rotate-180');
+                    });
+                });
+            }
+
+            function createPrepSection() {
+                const container = document.createElement('div');
+                container.className = 'space-y-4';
+                appData.prep.forEach(item => {
+                    const card = document.createElement('div');
+                    card.className = 'bg-white rounded-lg shadow-md overflow-hidden';
+                    card.innerHTML = `
+                        <div class="p-4 cursor-pointer flex justify-between items-center bg-gray-50">
+                            <h3 class="text-lg font-semibold text-gray-800"><span class="mr-3">${item.icon}</span>${item.title}</h3>
+                            <div class="text-xl transform transition-transform duration-300">▼</div>
+                        </div>
+                        <div class="details-content p-4">
+                            ${item.content}
+                        </div>
+                    `;
+                    container.appendChild(card);
+                    card.querySelector('.p-4.cursor-pointer').addEventListener('click', () => {
+                         const content = card.querySelector('.details-content');
+                         const icon = card.querySelector('.text-xl');
+                         content.classList.toggle('open');
+                         icon.classList.toggle('rotate-180');
+                    });
+                });
+                prepContainer.appendChild(container);
+            }
+
+            function createAttractionsSection() {
+                const categories = ['全部', ...new Set(appData.attractions.map(a => a.category))];
+                let html = `<div class="bg-white p-6 rounded-lg shadow-lg">
+                                <h2 class="text-2xl font-bold mb-4 text-center text-gray-800">核心景点速查</h2>
+                                <div class="flex flex-wrap justify-center gap-2 mb-6">`;
+                categories.forEach((cat, index) => {
+                    html += `<button class="btn-filter px-4 py-2 text-sm font-medium rounded-full bg-gray-200 text-gray-700 hover:bg-gray-300 ${index === 0 ? 'active' : ''}" data-filter="${cat}">${cat}</button>`;
+                });
+                html += `</div><div id="attraction-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">`;
+                
+                appData.attractions.forEach(att => {
+                    html += `
+                        <div class="attraction-card bg-gray-50 rounded-lg shadow-md p-6 flex flex-col" data-category="${att.category}">
+                            <h3 class="text-xl font-bold text-blue-700 mb-2">${att.name}</h3>
+                            <p class="text-gray-600 mb-4 flex-grow">${att.description}</p>
+                            <div class="border-t pt-4 mt-auto">
+                                <p class="text-sm font-semibold text-gray-800">💡 游玩提示: <span class="font-normal text-gray-600">${att.tips}</span></p>
+                                <p class="text-sm font-semibold text-gray-800">💰 门票参考: <span class="font-normal text-gray-600">${att.ticket}</span></p>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                html += `</div></div>`;
+                attractionsContainer.innerHTML = html;
+
+                const filterButtons = attractionsContainer.querySelectorAll('.btn-filter');
+                const attractionCards = attractionsContainer.querySelectorAll('.attraction-card');
+
+                filterButtons.forEach(button => {
+                    button.addEventListener('click', () => {
+                        const filter = button.dataset.filter;
+                        filterButtons.forEach(btn => btn.classList.remove('active'));
+                        button.classList.add('active');
+
+                        attractionCards.forEach(card => {
+                            if (filter === '全部' || card.dataset.category === filter) {
+                                card.classList.remove('hidden');
+                            } else {
+                                card.classList.add('hidden');
+                            }
+                        });
+                    });
+                });
+            }
+
+            function createBudgetSection() {
+                budgetContainer.innerHTML = `
+                    <div class="bg-white p-6 rounded-lg shadow-lg max-w-2xl mx-auto">
+                        <h2 class="text-2xl font-bold mb-2 text-center text-gray-800">行程预算估算器</h2>
+                        <p class="text-center text-gray-500 mb-6">拖动滑块，估算您本次旅行的大致花费（仅供参考）。</p>
+                        
+                        <div class="space-y-6">
+                            <div>
+                                <label for="people" class="font-medium">出行人数</label>
+                                <div class="flex items-center gap-4">
+                                    <input type="range" id="people" min="1" max="7" value="2" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                                    <span id="peopleValue" class="font-bold text-blue-700 w-8 text-center">2 人</span>
+                                </div>
+                            </div>
+                             <div>
+                                <label for="accommodation" class="font-medium">住宿标准</label>
+                                <div class="flex items-center gap-4">
+                                    <input type="range" id="accommodation" min="1" max="3" value="2" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                                    <span id="accommodationValue" class="font-bold text-blue-700 w-20 text-center">舒适</span>
+                                </div>
+                            </div>
+                             <div>
+                                <label for="dining" class="font-medium">餐饮标准</label>
+                                <div class="flex items-center gap-4">
+                                    <input type="range" id="dining" min="1" max="3" value="2" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                                    <span id="diningValue" class="font-bold text-blue-700 w-20 text-center">标准</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="border-t my-8"></div>
+
+                        <div class="text-center">
+                            <p class="text-gray-600 mb-2">预估总花费 (不含往返机票/租车)</p>
+                            <p id="totalCost" class="text-4xl font-extrabold text-blue-800">¥ 0</p>
+                            <p class="text-xs text-gray-400 mt-2">此估算基于行程单中的景点门票和食宿消费水平，实际花费可能因个人消费习惯和季节浮动而异。</p>
+                        </div>
+                    </div>
+                `;
+
+                const peopleSlider = document.getElementById('people');
+                const accommodationSlider = document.getElementById('accommodation');
+                const diningSlider = document.getElementById('dining');
+                
+                const peopleValue = document.getElementById('peopleValue');
+                const accommodationValue = document.getElementById('accommodationValue');
+                const diningValue = document.getElementById('diningValue');
+                const totalCost = document.getElementById('totalCost');
+
+                const accommodationLevels = { 1: '经济', 2: '舒适', 3: '豪华' };
+                const diningLevels = { 1: '简餐', 2: '标准', 3: '丰盛' };
+
+                function calculateBudget() {
+                    const numPeople = parseInt(peopleSlider.value);
+                    const accomLevel = parseInt(accommodationSlider.value);
+                    const diningLevel = parseInt(diningSlider.value);
+
+                    peopleValue.textContent = `${numPeople} 人`;
+                    accommodationValue.textContent = accommodationLevels[accomLevel];
+                    diningValue.textContent = diningLevels[diningLevel];
+
+                    const baseTicketCost = 45 + 230 + 102 + 62 + 95 + 144; 
+                    const accomCostPerPersonPerDay = [200, 400, 800][accomLevel - 1];
+                    const diningCostPerPersonPerDay = [100, 200, 350][diningLevel - 1];
+                    
+                    const totalDays = 10; 
+                    
+                    const totalAccommodation = accomCostPerPersonPerDay * totalDays * Math.ceil(numPeople / 2);
+                    const totalDining = diningCostPerPersonPerDay * totalDays * numPeople;
+                    const totalTickets = baseTicketCost * numPeople;
+
+                    const finalCost = totalAccommodation + totalDining + totalTickets;
+                    totalCost.textContent = `¥ ${finalCost.toLocaleString()}`;
+                }
+
+                peopleSlider.addEventListener('input', calculateBudget);
+                accommodationSlider.addEventListener('input', calculateBudget);
+                diningSlider.addEventListener('input', calculateBudget);
+                
+                calculateBudget();
+            }
+
+            function createChart() {
+                const ctx = document.getElementById('drivingChart').getContext('2d');
+                const labels = appData.itinerary.map(item => `D${item.day}`);
+                const data = appData.itinerary.map(item => item.distance);
+
+                new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: '每日行车公里数',
+                            data: data,
+                            backgroundColor: 'rgba(59, 130, 246, 0.5)',
+                            borderColor: 'rgba(59, 130, 246, 1)',
+                            borderWidth: 1,
+                            borderRadius: 4,
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: false
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    title: function(context) {
+                                        const dayIndex = context[0].dataIndex;
+                                        return `第 ${dayIndex + 1} 天: ${appData.itinerary[dayIndex].route}`;
+                                    },
+                                    label: function(context) {
+                                        return `行车约 ${context.raw} 公里`;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: '公里 (km)'
+                                }
+                            },
+                            x: {
+                                grid: {
+                                    display: false
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+            
+            createItinerary();
+            createPrepSection();
+            createAttractionsSection();
+            createBudgetSection();
+            createChart();
+        });
+    </script>
+</body>
+</html>
